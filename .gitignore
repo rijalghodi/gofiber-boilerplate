@@ -1,0 +1,16 @@
+# Environment varibales
+.env*
+!.env*.example
+
+# Temporary
+tmp/
+
+lint.txt
+main
+
+.vscode/
+
+_debug/
+__debug_bin*
+
+firebase.json
