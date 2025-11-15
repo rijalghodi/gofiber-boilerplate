@@ -217,6 +217,15 @@ The validation is handled by the utility functions in `pkg/util/validator.go`, w
 
 ## Basic Authentication
 
-The application uses Firebase Authentication and JWT tokens. To require authentication for certain routes, you can use the `Auth` middleware located in `internal/middleware/auth.go`.
+Protected routes use Firebase Authentication with JWT tokens. Add the `Auth` middleware (`internal/middleware/auth.go`) to require a valid JWT access token in the `Authorization: Bearer <token>` header. Requests without a valid token get a 401 Unauthorized error.
 
-These routes require a valid JWT access token in the Authorization request header using the Bearer schema. If the request does not contain a valid access token, an Unauthorized (401) error is thrown.
+## OAuth2 with Firebase
+
+This application uses Firebase as an OAuth2 provider for authentication. To enable Firebase authentication in your local or production environment:
+
+1. Go to your [Firebase Console](https://console.firebase.google.com/), select your project, and navigate to **Project Settings > Service Accounts**.
+2. Click on **Generate new private key**. This will download a JSON file containing your Firebase service account credentials.
+3. Save this file as `firebase.json` in the root of your project directory (or in the path specified by your configuration).
+4. Ensure the path to `firebase.json` is correctly set in your environment variables (e.g., `FIREBASE_SERVICE_ACCOUNT_KEY_PATH=./firebase.json`).
+
+The backend loads this JSON service account file to verify and authenticate JWT tokens provided by clients. Make sure to keep this file secure and do not commit it to version control.
