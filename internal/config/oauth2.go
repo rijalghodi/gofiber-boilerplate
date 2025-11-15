@@ -2,7 +2,8 @@ package config
 
 import (
 	"context"
-	"log"
+	"fmt"
+	"time"
 
 	firebase "firebase.google.com/go"
 	"firebase.google.com/go/auth"
@@ -11,34 +12,53 @@ import (
 
 var FirebaseAuth *auth.Client
 
-// InitFirebase initializes the Firebase Admin SDK
-func InitFirebase() error {
+func InitFirebase(serviceKeyPath string) (*auth.Client, error) {
 	ctx := context.Background()
 
 	var app *firebase.App
 	var err error
 
-	// If you have a service account key file path in env
-	if Env.Firebase.ServiceAccountKeyPath != "" {
-		opt := option.WithCredentialsFile(Env.Firebase.ServiceAccountKeyPath)
-		app, err = firebase.NewApp(ctx, nil, opt)
+	if serviceKeyPath != "" {
+		app, err = firebase.NewApp(ctx, nil, option.WithCredentialsFile(serviceKeyPath))
 	} else {
-		// Use default credentials (for Cloud Run, GKE, etc.)
 		app, err = firebase.NewApp(ctx, nil)
 	}
-
 	if err != nil {
-		log.Printf("error initializing firebase app: %v", err)
-		return err
+		return nil, err
 	}
 
-	// Get Auth client
-	FirebaseAuth, err = app.Auth(ctx)
+	return app.Auth(ctx)
+}
+
+type GoogleTokenInfo struct {
+	Sub           string `json:"sub"`
+	Email         string `json:"email"`
+	EmailVerified string `json:"email_verified"`
+	Name          string `json:"name"`
+	Picture       string `json:"picture"`
+}
+
+func VerifyGoogleToken(idToken string) (*GoogleTokenInfo, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	token, err := FirebaseAuth.VerifyIDToken(ctx, idToken)
 	if err != nil {
-		log.Printf("error getting firebase auth client: %v", err)
-		return err
+		return nil, fmt.Errorf("invalid token: %v", err)
 	}
 
-	log.Println("Firebase initialized successfully")
-	return nil
+	email, _ := token.Claims["email"].(string)
+	name, _ := token.Claims["name"].(string)
+	picture, _ := token.Claims["picture"].(string)
+	emailVerified, _ := token.Claims["email_verified"].(bool)
+
+	tokenInfo := &GoogleTokenInfo{
+		Sub:           token.UID,
+		Email:         email,
+		EmailVerified: fmt.Sprintf("%t", emailVerified),
+		Name:          name,
+		Picture:       picture,
+	}
+
+	return tokenInfo, nil
 }

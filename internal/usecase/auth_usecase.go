@@ -5,9 +5,8 @@ import (
 	"app/internal/contract"
 	"app/internal/model"
 	"app/internal/repository"
+	"app/pkg/logger"
 	"app/pkg/util"
-	"context"
-	"fmt"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -26,16 +25,8 @@ func NewAuthUsecase(userRepo *repository.UserRepository, emailUsecase *EmailUsec
 	}
 }
 
-type GoogleTokenInfo struct {
-	Sub           string `json:"sub"`
-	Email         string `json:"email"`
-	EmailVerified string `json:"email_verified"`
-	Name          string `json:"name"`
-	Picture       string `json:"picture"`
-}
-
 func (u *AuthUsecase) GoogleOAuth(c *fiber.Ctx, req *contract.GoogleOAuthReq) error {
-	googleInfo, err := u.verifyGoogleToken(req.IDToken)
+	googleInfo, err := config.VerifyGoogleToken(req.IDToken)
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "Invalid Google ID token")
 	}
@@ -168,7 +159,7 @@ func (u *AuthUsecase) Register(req *contract.RegisterReq) error {
 	}
 
 	if err := u.emailUsecase.SendVerificationEmail(newUser.Email, verifyToken); err != nil {
-		fmt.Printf("Failed to send verification email: %v\n", err)
+		logger.Log.Errorf("Failed to send verification email: %v", err)
 	}
 
 	return nil
@@ -186,7 +177,7 @@ func (u *AuthUsecase) SendVerificationEmail(email string) error {
 
 	verifyToken, err := u.generateVerificationToken(user.ID, user.Role)
 	if err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "Failed to generate verification token :"+err.Error())
+		return fiber.NewError(fiber.StatusInternalServerError, "Failed to generate verification token", err.Error())
 	}
 
 	if err := u.emailUsecase.SendVerificationEmail(user.Email, verifyToken); err != nil {
@@ -306,31 +297,6 @@ func (u *AuthUsecase) RefreshToken(c *fiber.Ctx, req *contract.RefreshTokenReq) 
 	}
 
 	return c.Status(fiber.StatusOK).JSON(util.ToSuccessResponse(res))
-}
-
-func (u *AuthUsecase) verifyGoogleToken(idToken string) (*GoogleTokenInfo, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	token, err := config.FirebaseAuth.VerifyIDToken(ctx, idToken)
-	if err != nil {
-		return nil, fmt.Errorf("invalid token: %v", err)
-	}
-
-	email, _ := token.Claims["email"].(string)
-	name, _ := token.Claims["name"].(string)
-	picture, _ := token.Claims["picture"].(string)
-	emailVerified, _ := token.Claims["email_verified"].(bool)
-
-	tokenInfo := &GoogleTokenInfo{
-		Sub:           token.UID,
-		Email:         email,
-		EmailVerified: fmt.Sprintf("%t", emailVerified),
-		Name:          name,
-		Picture:       picture,
-	}
-
-	return tokenInfo, nil
 }
 
 func (u *AuthUsecase) generateTokenPair(userID, role string) (*contract.TokenRes, error) {

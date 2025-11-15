@@ -22,7 +22,6 @@ func NewAuthHandler(authUsecase *usecase.AuthUsecase, userUsecase *usecase.UserU
 }
 
 func (h *AuthHandler) RegisterRoutes(app *fiber.App) {
-
 	authGroup := app.Group("/v1/auth")
 	authGroup.Post("/google", h.GoogleOAuth)
 	authGroup.Get("/me", middleware.AuthGuard(), h.GetCurrentUser)

@@ -19,7 +19,6 @@ type Environment struct {
 }
 
 type App struct {
-	Debug       bool   `env:"APP_DEBUG"`
 	LogLevel    string `env:"APP_LOG_LEVEL"`
 	Host        string `env:"APP_HOST"`
 	Port        int    `env:"APP_PORT"`

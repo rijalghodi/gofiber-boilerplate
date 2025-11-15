@@ -7,7 +7,6 @@ import (
 	"app/pkg/postgres"
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -17,6 +16,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/helmet"
 	"github.com/gofiber/swagger"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -26,14 +26,14 @@ func Run() error {
 		Level: config.Env.App.LogLevel,
 	})
 
-	// Initialize Firebase
-	if err := config.InitFirebase(); err != nil {
-		log.Fatalf("Failed to initialize Firebase: %v", err)
-	}
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// Initialize Firebase
+	_, err := config.InitFirebase(config.Env.Firebase.ServiceAccountKeyPath)
+	if err != nil {
+		logger.Log.Error("Failed to initialize Firebase", zap.Error(err))
+	}
 	app := setupFiberApp()
 	db := setupDatabase()
 	defer closeDatabase(db)
@@ -79,7 +79,7 @@ func setupDatabase() *gorm.DB {
 		ConnMaxIdleTime:    config.Env.Postgres.ConnMaxIdleTime,
 	})
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		logger.Log.Error("Failed to connect to database", zap.Error(err))
 	}
 	return db.DB
 }
@@ -102,14 +102,14 @@ func startServer(app *fiber.App, address string, errs chan<- error) {
 func closeDatabase(db *gorm.DB) {
 	sqlDB, errDB := db.DB()
 	if errDB != nil {
-		log.Fatalf("Error getting database instance: %v", errDB)
+		logger.Log.Error("Error getting database instance", zap.Error(errDB))
 		return
 	}
 
 	if err := sqlDB.Close(); err != nil {
-		log.Fatalf("Error closing database connection: %v", err)
+		logger.Log.Error("Error closing database connection", zap.Error(err))
 	} else {
-		log.Println("Database connection closed successfully")
+		logger.Log.Info("Database connection closed successfully")
 	}
 }
 
@@ -119,15 +119,15 @@ func handleGracefulShutdown(ctx context.Context, app *fiber.App, serverErrors <-
 
 	select {
 	case err := <-serverErrors:
-		log.Fatalf("Server error: %v", err)
+		logger.Log.Error("Server error", zap.Error(err))
 	case <-quit:
-		log.Println("Shutting down server...")
+		logger.Log.Info("Shutting down server...")
 		if err := app.Shutdown(); err != nil {
-			log.Fatalf("Error during server shutdown: %v", err)
+			logger.Log.Error("Error during server shutdown", zap.Error(err))
 		}
 	case <-ctx.Done():
-		log.Println("Server exiting due to context cancellation")
+		logger.Log.Info("Server exiting due to context cancellation")
 	}
 
-	log.Println("Server exited")
+	logger.Log.Info("Server exited")
 }
