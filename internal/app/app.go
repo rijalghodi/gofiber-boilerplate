@@ -23,7 +23,9 @@ import (
 // Run starts the application server
 func Run() error {
 	logger.Init(logger.Config{
-		Level: config.Env.App.LogLevel,
+		Level:        config.Env.Logger.Level,
+		Format:       config.Env.Logger.Format,
+		EnableCaller: config.Env.Logger.EnableCaller,
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -33,11 +35,22 @@ func Run() error {
 	_, err := config.InitFirebase(config.Env.Firebase.ServiceAccountKeyPath)
 	if err != nil {
 		logger.Log.Error("Failed to initialize Firebase", zap.Error(err))
+		return err
 	}
+
 	app := setupFiberApp()
-	db := setupDatabase()
+
+	db, err := setupDatabase()
+	if err != nil {
+		logger.Log.Error("Failed to setup database", zap.Error(err))
+		return err
+	}
 	defer closeDatabase(db)
-	setupRoutes(app, db)
+
+	if err := setupRoutes(app, db); err != nil {
+		logger.Log.Error("Failed to setup routes", zap.Error(err))
+		return err
+	}
 
 	address := fmt.Sprintf("%s:%d", config.Env.App.Host, config.Env.App.Port)
 
@@ -63,7 +76,7 @@ func setupFiberApp() *fiber.App {
 	return app
 }
 
-func setupDatabase() *gorm.DB {
+func setupDatabase() (*gorm.DB, error) {
 	db, err := postgres.NewPostgres(postgres.PostgresConfig{
 		MigrationDirectory: config.Env.Postgres.MigrationDirectory,
 		MigrationDialect:   config.Env.Postgres.MigrationDialect,
@@ -79,18 +92,17 @@ func setupDatabase() *gorm.DB {
 		ConnMaxIdleTime:    config.Env.Postgres.ConnMaxIdleTime,
 	})
 	if err != nil {
-		logger.Log.Error("Failed to connect to database", zap.Error(err))
+		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
-	return db.DB
+	return db.DB, nil
 }
 
-func setupRoutes(app *fiber.App, db *gorm.DB) {
-
+func setupRoutes(app *fiber.App, db *gorm.DB) error {
 	docs := app.Group("/docs")
-
 	docs.Get("/*", swagger.HandlerDefault)
 
 	InjectHTTPHandlers(app, db)
+	return nil
 }
 
 func startServer(app *fiber.App, address string, errs chan<- error) {
@@ -100,6 +112,10 @@ func startServer(app *fiber.App, address string, errs chan<- error) {
 }
 
 func closeDatabase(db *gorm.DB) {
+	if db == nil {
+		return
+	}
+
 	sqlDB, errDB := db.DB()
 	if errDB != nil {
 		logger.Log.Error("Error getting database instance", zap.Error(errDB))

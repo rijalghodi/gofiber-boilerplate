@@ -4,20 +4,20 @@ import (
 	"app/internal/contract"
 	"app/internal/middleware"
 	"app/internal/usecase"
+	"app/pkg/logger"
 	"app/pkg/util"
 
 	"github.com/gofiber/fiber/v2"
+	"go.uber.org/zap"
 )
 
 type AuthHandler struct {
 	authUsecase *usecase.AuthUsecase
-	userUsecase *usecase.UserUsecase
 }
 
-func NewAuthHandler(authUsecase *usecase.AuthUsecase, userUsecase *usecase.UserUsecase) *AuthHandler {
+func NewAuthHandler(authUsecase *usecase.AuthUsecase) *AuthHandler {
 	return &AuthHandler{
 		authUsecase: authUsecase,
-		userUsecase: userUsecase,
 	}
 }
 
@@ -46,10 +46,12 @@ func (h *AuthHandler) RegisterRoutes(app *fiber.App) {
 func (h *AuthHandler) GoogleOAuth(c *fiber.Ctx) error {
 	var req contract.GoogleOAuthReq
 	if err := c.BodyParser(&req); err != nil {
+		logger.Log.Warn("Failed to parse request body", zap.Error(err))
 		return err
 	}
 
 	if err := util.ValidateStruct(&req); err != nil {
+		logger.Log.Warn("Validation error", zap.Error(err))
 		return err
 	}
 
@@ -68,8 +70,9 @@ func (h *AuthHandler) GoogleOAuth(c *fiber.Ctx) error {
 // @Router /v1/auth/me [get]
 func (h *AuthHandler) GetCurrentUser(c *fiber.Ctx) error {
 	claims := middleware.GetAuthClaims(c)
-	user, err := h.userUsecase.GetUserByID(c, claims.ID)
+	user, err := h.authUsecase.GetUserByID(claims.ID)
 	if err != nil {
+		logger.Log.Error("Failed to get user", zap.Error(err))
 		return fiber.NewError(fiber.StatusInternalServerError, "Failed to get user")
 	}
 	return c.Status(fiber.StatusOK).JSON(util.ToSuccessResponse(user))
@@ -87,10 +90,12 @@ func (h *AuthHandler) GetCurrentUser(c *fiber.Ctx) error {
 func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	var req contract.LoginReq
 	if err := c.BodyParser(&req); err != nil {
+		logger.Log.Warn("Failed to parse request body", zap.Error(err))
 		return err
 	}
 
 	if err := util.ValidateStruct(&req); err != nil {
+		logger.Log.Warn("Validation error", zap.Error(err))
 		return err
 	}
 
@@ -109,14 +114,17 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	var req contract.RegisterReq
 	if err := c.BodyParser(&req); err != nil {
+		logger.Log.Warn("Failed to parse request body", zap.Error(err))
 		return err
 	}
 
 	if err := util.ValidateStruct(&req); err != nil {
+		logger.Log.Warn("Validation error", zap.Error(err))
 		return err
 	}
 
 	if err := h.authUsecase.Register(&req); err != nil {
+		logger.Log.Error("Failed to register user", zap.Error(err))
 		return err
 	}
 
@@ -137,14 +145,17 @@ func (h *AuthHandler) SendVerificationEmail(c *fiber.Ctx) error {
 
 	var req contract.SendVerificationEmailReq
 	if err := c.BodyParser(&req); err != nil {
+		logger.Log.Warn("Failed to parse request body: %v", err)
 		return err
 	}
 
 	if err := util.ValidateStruct(&req); err != nil {
+		logger.Log.Warn("Validation error: %v", err)
 		return err
 	}
 
 	if err := h.authUsecase.SendVerificationEmail(req.Email); err != nil {
+		logger.Log.Warn("Failed to send verification email: %v", err)
 		return err
 	}
 	return c.Status(fiber.StatusOK).JSON(util.ToSuccessResponse(nil))
@@ -163,6 +174,7 @@ func (h *AuthHandler) SendVerificationEmail(c *fiber.Ctx) error {
 func (h *AuthHandler) VerifyEmail(c *fiber.Ctx) error {
 	token := c.Query("token")
 	if token == "" {
+		logger.Log.Warn("Token is required")
 		return fiber.NewError(fiber.StatusBadRequest, "Token is required")
 	}
 
@@ -181,10 +193,12 @@ func (h *AuthHandler) VerifyEmail(c *fiber.Ctx) error {
 func (h *AuthHandler) ForgotPassword(c *fiber.Ctx) error {
 	var req contract.ForgotPasswordReq
 	if err := c.BodyParser(&req); err != nil {
+		logger.Log.Warn("Failed to parse request body: %v", err)
 		return err
 	}
 
 	if err := util.ValidateStruct(&req); err != nil {
+		logger.Log.Warn("Validation error: %v", err)
 		return err
 	}
 
@@ -204,10 +218,12 @@ func (h *AuthHandler) ForgotPassword(c *fiber.Ctx) error {
 func (h *AuthHandler) ResetPassword(c *fiber.Ctx) error {
 	var req contract.ResetPasswordReq
 	if err := c.BodyParser(&req); err != nil {
+		logger.Log.Warn("Failed to parse request body: %v", err)
 		return err
 	}
 
 	if err := util.ValidateStruct(&req); err != nil {
+		logger.Log.Warn("Validation error: %v", err)
 		return err
 	}
 
@@ -226,10 +242,12 @@ func (h *AuthHandler) ResetPassword(c *fiber.Ctx) error {
 func (h *AuthHandler) RefreshToken(c *fiber.Ctx) error {
 	var req contract.RefreshTokenReq
 	if err := c.BodyParser(&req); err != nil {
+		logger.Log.Warn("Failed to parse request body: %v", err)
 		return err
 	}
 
 	if err := util.ValidateStruct(&req); err != nil {
+		logger.Log.Warn("Validation error: %v", err)
 		return err
 	}
 

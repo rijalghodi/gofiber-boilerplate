@@ -11,6 +11,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 type AuthUsecase struct {
@@ -28,6 +29,7 @@ func NewAuthUsecase(userRepo *repository.UserRepository, emailUsecase *EmailUsec
 func (u *AuthUsecase) GoogleOAuth(c *fiber.Ctx, req *contract.GoogleOAuthReq) error {
 	googleInfo, err := config.VerifyGoogleToken(req.IDToken)
 	if err != nil {
+		logger.Log.Warn("Failed to verify Google token", zap.Error(err))
 		return fiber.NewError(fiber.StatusBadRequest, "Invalid Google ID token")
 	}
 
@@ -35,13 +37,15 @@ func (u *AuthUsecase) GoogleOAuth(c *fiber.Ctx, req *contract.GoogleOAuthReq) er
 
 	user, err = u.userRepo.GetUserByGoogleID(googleInfo.Sub)
 	if err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "Failed to query user by Google ID")
+		logger.Log.Error("Failed to query user by Google ID", zap.Error(err), zap.String("googleID", googleInfo.Sub))
+		return fiber.NewError(fiber.StatusInternalServerError)
 	}
 
 	if user == nil {
 		user, err = u.userRepo.GetUserByEmail(googleInfo.Email)
 		if err != nil {
-			return fiber.NewError(fiber.StatusInternalServerError, "Failed to query user by email")
+			logger.Log.Error("Failed to query user by email", zap.Error(err), zap.String("email", googleInfo.Email))
+			return fiber.NewError(fiber.StatusInternalServerError)
 		}
 	}
 
@@ -54,7 +58,8 @@ func (u *AuthUsecase) GoogleOAuth(c *fiber.Ctx, req *contract.GoogleOAuthReq) er
 			IsVerified: true,
 		}
 		if err := u.userRepo.CreateUser(newUser); err != nil {
-			return fiber.NewError(fiber.StatusInternalServerError, "Failed to create user")
+			logger.Log.Error("Failed to create user", zap.Error(err), zap.String("email", googleInfo.Email))
+			return fiber.NewError(fiber.StatusInternalServerError)
 		}
 		user = newUser
 	} else if user.GoogleID == "" || user.GoogleID != googleInfo.Sub {
@@ -63,13 +68,15 @@ func (u *AuthUsecase) GoogleOAuth(c *fiber.Ctx, req *contract.GoogleOAuthReq) er
 		user.Name = googleInfo.Name
 
 		if err := u.userRepo.UpdateUser(user); err != nil {
-			return fiber.NewError(fiber.StatusInternalServerError, "Failed to update user")
+			logger.Log.Error("Failed to update user", zap.Error(err), zap.String("userID", user.ID))
+			return fiber.NewError(fiber.StatusInternalServerError)
 		}
 	}
 
 	tokens, err := u.generateTokenPair(user.ID, user.Role)
 	if err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "Failed to generate token")
+		logger.Log.Error("Failed to generate token pair", zap.Error(err), zap.String("userID", user.ID))
+		return fiber.NewError(fiber.StatusInternalServerError)
 	}
 
 	res := contract.GoogleOAuthRes{
@@ -88,7 +95,8 @@ func (u *AuthUsecase) GetCurrentUser(c *fiber.Ctx) error {
 
 	user, ok := userLocal.(*model.User)
 	if !ok {
-		return fiber.NewError(fiber.StatusInternalServerError, "Invalid user data")
+		logger.Log.Error("Invalid user data type in context")
+		return fiber.NewError(fiber.StatusInternalServerError)
 	}
 
 	return c.Status(fiber.StatusOK).JSON(util.ToSuccessResponse(u.buildUserRes(user)))
@@ -97,7 +105,8 @@ func (u *AuthUsecase) GetCurrentUser(c *fiber.Ctx) error {
 func (u *AuthUsecase) Login(c *fiber.Ctx, req *contract.LoginReq) error {
 	user, err := u.userRepo.GetUserByEmail(req.Email)
 	if err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "Failed to query user")
+		logger.Log.Error("Failed to query user by email", zap.Error(err), zap.String("email", req.Email))
+		return fiber.NewError(fiber.StatusInternalServerError)
 	}
 
 	if user == nil {
@@ -114,7 +123,8 @@ func (u *AuthUsecase) Login(c *fiber.Ctx, req *contract.LoginReq) error {
 
 	tokens, err := u.generateTokenPair(user.ID, user.Role)
 	if err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "Failed to generate token")
+		logger.Log.Error("Failed to generate token pair", zap.Error(err), zap.String("userID", user.ID))
+		return fiber.NewError(fiber.StatusInternalServerError)
 	}
 
 	res := contract.LoginRes{
@@ -128,16 +138,19 @@ func (u *AuthUsecase) Login(c *fiber.Ctx, req *contract.LoginReq) error {
 func (u *AuthUsecase) Register(req *contract.RegisterReq) error {
 	existingUser, err := u.userRepo.GetUserByEmail(req.Email)
 	if err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "Failed to query user")
+		logger.Log.Error("Failed to query user by email", zap.Error(err), zap.String("email", req.Email))
+		return fiber.NewError(fiber.StatusInternalServerError)
 	}
 
 	if existingUser != nil {
+		logger.Log.Warn("Registration attempt with existing email", zap.String("email", req.Email))
 		return fiber.NewError(fiber.StatusConflict, "Email already taken")
 	}
 
 	hashedPassword, err := util.HashPassword(req.Password)
 	if err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "Failed to hash password")
+		logger.Log.Error("Failed to hash password", zap.Error(err))
+		return fiber.NewError(fiber.StatusInternalServerError)
 	}
 
 	newUser := &model.User{
@@ -150,16 +163,18 @@ func (u *AuthUsecase) Register(req *contract.RegisterReq) error {
 	}
 
 	if err := u.userRepo.CreateUser(newUser); err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "Failed to create user")
+		logger.Log.Error("Failed to create user", zap.Error(err), zap.String("email", req.Email))
+		return fiber.NewError(fiber.StatusInternalServerError)
 	}
 
 	verifyToken, err := u.generateVerificationToken(newUser.ID, newUser.Role)
 	if err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "Failed to generate verification token")
+		logger.Log.Error("Failed to generate verification token", zap.Error(err), zap.String("userID", newUser.ID))
+		return fiber.NewError(fiber.StatusInternalServerError)
 	}
 
 	if err := u.emailUsecase.SendVerificationEmail(newUser.Email, verifyToken); err != nil {
-		logger.Log.Errorf("Failed to send verification email: %v", err)
+		logger.Log.Error("Failed to send verification email", zap.Error(err), zap.String("email", newUser.Email))
 	}
 
 	return nil
@@ -168,7 +183,8 @@ func (u *AuthUsecase) Register(req *contract.RegisterReq) error {
 func (u *AuthUsecase) SendVerificationEmail(email string) error {
 	user, err := u.userRepo.GetUserByEmail(email)
 	if err != nil {
-		return err
+		logger.Log.Error("Failed to get user by email", zap.Error(err), zap.String("email", email))
+		return fiber.NewError(fiber.StatusInternalServerError)
 	}
 
 	if user.IsVerified {
@@ -177,11 +193,13 @@ func (u *AuthUsecase) SendVerificationEmail(email string) error {
 
 	verifyToken, err := u.generateVerificationToken(user.ID, user.Role)
 	if err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "Failed to generate verification token", err.Error())
+		logger.Log.Error("Failed to generate verification token", zap.Error(err), zap.String("userID", user.ID))
+		return fiber.NewError(fiber.StatusInternalServerError)
 	}
 
 	if err := u.emailUsecase.SendVerificationEmail(user.Email, verifyToken); err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "Failed to send verification email :"+err.Error())
+		logger.Log.Error("Failed to send verification email", zap.Error(err), zap.String("email", user.Email))
+		return fiber.NewError(fiber.StatusInternalServerError)
 	}
 
 	return nil
@@ -190,25 +208,30 @@ func (u *AuthUsecase) SendVerificationEmail(email string) error {
 func (u *AuthUsecase) VerifyEmail(token string) error {
 	claims, err := util.VerifyToken(token, config.Env.JWT.Secret)
 	if err != nil {
-		return fiber.NewError(fiber.StatusUnauthorized, "Invalid or expired token :"+err.Error())
+		logger.Log.Error("Invalid or expired verification token", zap.Error(err))
+		return fiber.NewError(fiber.StatusUnauthorized, "Invalid or expired token")
 	}
 
 	if claims.Type != config.TokenTypeVerifyEmail {
-		return fiber.NewError(fiber.StatusUnauthorized, "Invalid token type :"+claims.Type)
+		logger.Log.Warn("Invalid token type for email verification", zap.String("tokenType", claims.Type))
+		return fiber.NewError(fiber.StatusUnauthorized, "Invalid token type")
 	}
 
 	user, err := u.userRepo.GetUserByID(claims.ID)
 	if err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "Failed to get user :"+err.Error())
+		logger.Log.Error("Failed to get user by ID", zap.Error(err), zap.String("userID", claims.ID))
+		return fiber.NewError(fiber.StatusInternalServerError)
 	}
 
 	if user == nil {
+		logger.Log.Warn("User not found for email verification", zap.String("userID", claims.ID))
 		return fiber.NewError(fiber.StatusNotFound, "User not found")
 	}
 
 	user.IsVerified = true
 	if err := u.userRepo.UpdateUser(user); err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "Failed to verify email :"+err.Error())
+		logger.Log.Error("Failed to update user verification status", zap.Error(err), zap.String("userID", user.ID))
+		return fiber.NewError(fiber.StatusInternalServerError)
 	}
 
 	return nil
@@ -217,20 +240,24 @@ func (u *AuthUsecase) VerifyEmail(token string) error {
 func (u *AuthUsecase) ForgotPassword(req *contract.ForgotPasswordReq) error {
 	user, err := u.userRepo.GetUserByEmail(req.Email)
 	if err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "Failed to query user")
+		logger.Log.Error("Failed to query user by email", zap.Error(err), zap.String("email", req.Email))
+		return fiber.NewError(fiber.StatusInternalServerError)
 	}
 
 	if user == nil {
-		return fiber.NewError(fiber.StatusNotFound, "User not found")
+		// Don't reveal if email exists or not for security
+		return nil
 	}
 
 	resetToken, err := u.generateResetPasswordToken(user.ID, user.Role)
 	if err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "Failed to generate reset token")
+		logger.Log.Error("Failed to generate reset password token", zap.Error(err), zap.String("userID", user.ID))
+		return fiber.NewError(fiber.StatusInternalServerError)
 	}
 
 	if err := u.emailUsecase.SendResetPasswordEmail(user.Email, resetToken); err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "Failed to send reset password email")
+		logger.Log.Error("Failed to send reset password email", zap.Error(err), zap.String("email", user.Email))
+		return fiber.NewError(fiber.StatusInternalServerError)
 	}
 
 	return nil
@@ -239,29 +266,35 @@ func (u *AuthUsecase) ForgotPassword(req *contract.ForgotPasswordReq) error {
 func (u *AuthUsecase) ResetPassword(token string, newPassword string) error {
 	claims, err := util.VerifyToken(token, config.Env.JWT.Secret)
 	if err != nil {
+		logger.Log.Error("Invalid or expired reset password token", zap.Error(err))
 		return fiber.NewError(fiber.StatusUnauthorized, "Invalid or expired token")
 	}
 
 	if claims.Type != config.TokenTypeResetPassword {
+		logger.Log.Warn("Invalid token type for password reset", zap.String("tokenType", claims.Type))
 		return fiber.NewError(fiber.StatusUnauthorized, "Invalid token type")
 	}
 
 	user, err := u.userRepo.GetUserByID(claims.ID)
 	if err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "Failed to get user")
+		logger.Log.Error("Failed to get user by ID", zap.Error(err), zap.String("userID", claims.ID))
+		return fiber.NewError(fiber.StatusInternalServerError)
 	}
 
 	if user == nil {
+		logger.Log.Warn("User not found for password reset", zap.String("userID", claims.ID))
 		return fiber.NewError(fiber.StatusNotFound, "User not found")
 	}
 
 	hashedPassword, err := util.HashPassword(newPassword)
 	if err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "Failed to hash password")
+		logger.Log.Error("Failed to hash password", zap.Error(err))
+		return fiber.NewError(fiber.StatusInternalServerError)
 	}
 
 	if err := u.userRepo.UpdateUserPassword(user.ID, hashedPassword); err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "Failed to update password")
+		logger.Log.Error("Failed to update user password", zap.Error(err), zap.String("userID", user.ID))
+		return fiber.NewError(fiber.StatusInternalServerError)
 	}
 
 	return nil
@@ -270,25 +303,30 @@ func (u *AuthUsecase) ResetPassword(token string, newPassword string) error {
 func (u *AuthUsecase) RefreshToken(c *fiber.Ctx, req *contract.RefreshTokenReq) error {
 	claims, err := util.VerifyToken(req.RefreshToken, config.Env.JWT.Secret)
 	if err != nil {
+		logger.Log.Error("Invalid or expired refresh token", zap.Error(err))
 		return fiber.NewError(fiber.StatusUnauthorized, "Invalid or expired token")
 	}
 
 	if claims.Type != config.TokenTypeRefresh {
+		logger.Log.Warn("Invalid token type for refresh", zap.String("tokenType", claims.Type))
 		return fiber.NewError(fiber.StatusUnauthorized, "Invalid token type")
 	}
 
 	user, err := u.userRepo.GetUserByID(claims.ID)
 	if err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "Failed to get user")
+		logger.Log.Error("Failed to get user by ID", zap.Error(err), zap.String("userID", claims.ID))
+		return fiber.NewError(fiber.StatusInternalServerError)
 	}
 
 	if user == nil {
+		logger.Log.Warn("User not found for token refresh", zap.String("userID", claims.ID))
 		return fiber.NewError(fiber.StatusNotFound, "User not found")
 	}
 
 	tokens, err := u.generateTokenPair(user.ID, user.Role)
 	if err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "Failed to generate token")
+		logger.Log.Error("Failed to generate token pair", zap.Error(err), zap.String("userID", user.ID))
+		return fiber.NewError(fiber.StatusInternalServerError)
 	}
 
 	res := contract.RefreshTokenRes{
@@ -297,6 +335,15 @@ func (u *AuthUsecase) RefreshToken(c *fiber.Ctx, req *contract.RefreshTokenReq) 
 	}
 
 	return c.Status(fiber.StatusOK).JSON(util.ToSuccessResponse(res))
+}
+
+func (u *AuthUsecase) GetUserByID(id string) (*model.User, error) {
+	user, err := u.userRepo.GetUserByID(id)
+	if err != nil {
+		logger.Log.Error("Failed to get user by ID", zap.Error(err), zap.String("userID", id))
+		return nil, fiber.NewError(fiber.StatusInternalServerError)
+	}
+	return user, nil
 }
 
 func (u *AuthUsecase) generateTokenPair(userID, role string) (*contract.TokenRes, error) {

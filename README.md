@@ -41,7 +41,7 @@ cp .env.example .env
 - **Logging**: using custom [Zap](https://github.com/uber-go/zap)
 - **Error handling**: centralized error handling mechanism
 - **Sending email**: SMTP email support with Google Mail
-- **Environment variables**: using [Viper](https://github.com/joho/godotenv)
+- **Environment variables**: using [Godotenv](https://github.com/joho/godotenv)
 - **Authentication**: Firebase Authentication and JWT
 - **Security**: HTTP headers, CORS, rate limiting
 - **Docker support**
@@ -115,6 +115,13 @@ APP_PORT=8080
 APP_URL=http://localhost:8080
 APP_FRONTEND_URL=http://localhost:3000
 
+
+# =================================== #
+# Logger
+# =================================== #
+LOGGER_LEVEL=debug
+LOGGER_FORMAT=console # json, console
+LOGGER_ENABLE_CALLER=true
 
 # =================================== #
 # Postgres

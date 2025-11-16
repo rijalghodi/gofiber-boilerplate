@@ -9,6 +9,7 @@ import (
 
 type Environment struct {
 	App         App
+	Logger      Logger
 	Postgres    Postgres
 	JWT         JWT
 	SMTPGoogle  SMTPGoogle
@@ -19,11 +20,16 @@ type Environment struct {
 }
 
 type App struct {
-	LogLevel    string `env:"APP_LOG_LEVEL"`
 	Host        string `env:"APP_HOST"`
 	Port        int    `env:"APP_PORT"`
 	URL         string `env:"APP_URL"`
 	FrontendURL string `env:"APP_FRONTEND_URL"`
+}
+
+type Logger struct {
+	Level        string `env:"LOGGER_LEVEL"`
+	Format       string `env:"LOGGER_FORMAT"`
+	EnableCaller bool   `env:"LOGGER_ENABLE_CALLER"`
 }
 
 type Postgres struct {

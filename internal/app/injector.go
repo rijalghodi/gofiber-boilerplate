@@ -24,10 +24,9 @@ func InjectHTTPHandlers(app *fiber.App, db *gorm.DB) {
 	userRepo := repository.NewUserRepository(db)
 	emailUsecase := usecase.NewEmailUsecase()
 	authUsecase := usecase.NewAuthUsecase(userRepo, emailUsecase)
-	userUsecase := usecase.NewUserUsecase(userRepo)
 
 	// handler
-	authHandler := handler.NewAuthHandler(authUsecase, userUsecase)
+	authHandler := handler.NewAuthHandler(authUsecase)
 	authHandler.RegisterRoutes(app)
 
 }

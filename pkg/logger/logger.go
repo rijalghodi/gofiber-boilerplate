@@ -43,7 +43,7 @@ func Init(cfg Config) {
 
 	config.Level = zap.NewAtomicLevelAt(level)
 	config.EncoderConfig.TimeKey = "timestamp"
-	config.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	config.EncoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout("15:04:05.00")
 	config.DisableCaller = !cfg.EnableCaller
 	config.DisableStacktrace = true
 
