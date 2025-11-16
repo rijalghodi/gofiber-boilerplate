@@ -31,13 +31,6 @@ func Run() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Initialize Firebase
-	_, err := config.InitFirebase(config.Env.Firebase.ServiceAccountKeyPath)
-	if err != nil {
-		logger.Log.Error("Failed to initialize Firebase", zap.Error(err))
-		return err
-	}
-
 	app := setupFiberApp()
 
 	db, err := setupDatabase()
@@ -47,7 +40,7 @@ func Run() error {
 	}
 	defer closeDatabase(db)
 
-	if err := setupRoutes(app, db); err != nil {
+	if err := setupRoutes(ctx, app, db); err != nil {
 		logger.Log.Error("Failed to setup routes", zap.Error(err))
 		return err
 	}
@@ -97,11 +90,11 @@ func setupDatabase() (*gorm.DB, error) {
 	return db.DB, nil
 }
 
-func setupRoutes(app *fiber.App, db *gorm.DB) error {
+func setupRoutes(ctx context.Context, app *fiber.App, db *gorm.DB) error {
 	docs := app.Group("/docs")
 	docs.Get("/*", swagger.HandlerDefault)
 
-	InjectHTTPHandlers(app, db)
+	InjectHTTPHandlers(ctx, app, db)
 	return nil
 }
 

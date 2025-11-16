@@ -15,19 +15,21 @@ import (
 )
 
 type AuthUsecase struct {
-	userRepo     *repository.UserRepository
-	emailUsecase *EmailUsecase
+	userRepo        *repository.UserRepository
+	emailUsecase    *EmailUsecase
+	firebaseUsecase *FirebaseUsecase
 }
 
-func NewAuthUsecase(userRepo *repository.UserRepository, emailUsecase *EmailUsecase) *AuthUsecase {
+func NewAuthUsecase(userRepo *repository.UserRepository, emailUsecase *EmailUsecase, firebaseUsecase *FirebaseUsecase) *AuthUsecase {
 	return &AuthUsecase{
-		userRepo:     userRepo,
-		emailUsecase: emailUsecase,
+		userRepo:        userRepo,
+		emailUsecase:    emailUsecase,
+		firebaseUsecase: firebaseUsecase,
 	}
 }
 
 func (u *AuthUsecase) GoogleOAuth(c *fiber.Ctx, req *contract.GoogleOAuthReq) error {
-	googleInfo, err := config.VerifyGoogleToken(req.IDToken)
+	googleInfo, err := u.firebaseUsecase.VerifyGoogleToken(c.Context(), req.IDToken)
 	if err != nil {
 		logger.Log.Warn("Failed to verify Google token", zap.Error(err))
 		return fiber.NewError(fiber.StatusBadRequest, "Invalid Google ID token")

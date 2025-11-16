@@ -1,20 +1,19 @@
-package config
+package usecase
 
 import (
 	"context"
 	"fmt"
-	"time"
 
 	firebase "firebase.google.com/go"
 	"firebase.google.com/go/auth"
 	"google.golang.org/api/option"
 )
 
-var FirebaseAuth *auth.Client
+type FirebaseUsecase struct {
+	auth *auth.Client
+}
 
-func InitFirebase(serviceKeyPath string) (*auth.Client, error) {
-	ctx := context.Background()
-
+func NewFirebaseUsecase(ctx context.Context, serviceKeyPath string) (*FirebaseUsecase, error) {
 	var app *firebase.App
 	var err error
 
@@ -24,10 +23,17 @@ func InitFirebase(serviceKeyPath string) (*auth.Client, error) {
 		app, err = firebase.NewApp(ctx, nil)
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to initialize firebase app: %w", err)
 	}
 
-	return app.Auth(ctx)
+	authClient, err := app.Auth(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get firebase auth client: %w", err)
+	}
+
+	return &FirebaseUsecase{
+		auth: authClient,
+	}, nil
 }
 
 type GoogleTokenInfo struct {
@@ -38,11 +44,8 @@ type GoogleTokenInfo struct {
 	Picture       string `json:"picture"`
 }
 
-func VerifyGoogleToken(idToken string) (*GoogleTokenInfo, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	token, err := FirebaseAuth.VerifyIDToken(ctx, idToken)
+func (u *FirebaseUsecase) VerifyGoogleToken(ctx context.Context, idToken string) (*GoogleTokenInfo, error) {
+	token, err := u.auth.VerifyIDToken(ctx, idToken)
 	if err != nil {
 		return nil, fmt.Errorf("invalid token: %v", err)
 	}
