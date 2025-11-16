@@ -8,22 +8,17 @@ import (
 )
 
 type Environment struct {
-	App         App
-	Logger      Logger
-	Postgres    Postgres
-	JWT         JWT
-	SMTPGoogle  SMTPGoogle
-	Redis       Redis
-	GPT         GPT
-	GoogleOAuth GoogleOAuth
-	Firebase    Firebase
+	App        App
+	Logger     Logger
+	Postgres   Postgres
+	JWT        JWT
+	SMTPGoogle SMTPGoogle
+	Firebase   Firebase
 }
 
 type App struct {
-	Host        string `env:"APP_HOST"`
-	Port        int    `env:"APP_PORT"`
-	URL         string `env:"APP_URL"`
-	FrontendURL string `env:"APP_FRONTEND_URL"`
+	Host string `env:"APP_HOST"`
+	Port int    `env:"APP_PORT"`
 }
 
 type Logger struct {
@@ -61,23 +56,6 @@ type SMTPGoogle struct {
 	Sender   string `env:"SMTP_GOOGLE_SENDER_NAME"`
 	Email    string `env:"SMTP_GOOGLE_EMAIL"`
 	Password string `env:"SMTP_GOOGLE_PASSWORD"`
-}
-
-type Redis struct {
-	Host     string `env:"REDIS_HOST"`
-	User     string `env:"REDIS_USER"`
-	Password string `env:"REDIS_PASSWORD"`
-	DB       int    `env:"REDIS_DB_NUMBER"`
-}
-
-type GPT struct {
-	APIKey string `env:"GPT_API_KEY"`
-}
-
-type GoogleOAuth struct {
-	RedirectURL  string `env:"GOOGLE_OAUTH_REDIRECT_URL"`
-	ClientID     string `env:"GOOGLE_OAUTH_CLIENT_ID"`
-	ClientSecret string `env:"GOOGLE_OAUTH_CLIENT_SECRET"`
 }
 
 type Firebase struct {

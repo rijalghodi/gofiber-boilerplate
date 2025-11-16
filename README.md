@@ -109,17 +109,14 @@ make migrate-down <number>
 # =================================== #
 # App
 # =================================== #
-APP_LOG_LEVEL=info
 APP_HOST=127.0.0.1
 APP_PORT=8080
-APP_URL=http://localhost:8080
-APP_FRONTEND_URL=http://localhost:3000
 
 
 # =================================== #
 # Logger
 # =================================== #
-LOGGER_LEVEL=debug
+LOGGER_LEVEL=info
 LOGGER_FORMAT=console # json, console
 LOGGER_ENABLE_CALLER=true
 
