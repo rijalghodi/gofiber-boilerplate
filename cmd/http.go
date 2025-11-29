@@ -9,7 +9,7 @@ import (
 // @license.name MIT
 // @license.url https://github.com/indrayyana/go-fiber-boilerplate/blob/main/LICENSE
 // @host localhost:3000
-// @BasePath /v1
+// @BasePath /
 // @securityDefinitions.apikey BearerAuth
 // @in header
 // @name Authorization
