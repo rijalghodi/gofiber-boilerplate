@@ -9,9 +9,9 @@ tmp_dir = "tmp"
 # Add additional arguments when running binary (bin/full_bin).
 args_bin = []
 # Binary file yields from `cmd`. change binary to `main.exe` if you using windows
-bin = "./tmp/main"
+bin = ""
 # Just plain old shell command. You could use `make` as well. change binary to `main.exe` if you using windows
-cmd = "go build -race -o ./tmp/main ./src"
+cmd = ""
 # It's not necessary to trigger build each time file changes if it's too frequent.
 delay = 1000 # ms
 # Ignore these filename extensions or directories.
@@ -25,7 +25,7 @@ exclude_unchanged = false
 # Follow symlink for directories
 follow_symlink = false
 # Customize binary, can setup environment variables when run your app.
-full_bin = ""
+full_bin = "go run main.go http"
 # Watch these directories if you specified.
 include_dir = []
 # Watch these filename extensions.

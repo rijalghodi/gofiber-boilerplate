@@ -2,8 +2,8 @@ package config
 
 import (
 	"app/pkg/util"
+	"encoding/json"
 
-	"github.com/bytedance/sonic"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -13,7 +13,7 @@ func FiberConfig() fiber.Config {
 		ServerHeader:  "Memr",
 		AppName:       "Memr API",
 		ErrorHandler:  util.ErrorHandler,
-		JSONEncoder:   sonic.Marshal,
-		JSONDecoder:   sonic.Unmarshal,
+		JSONEncoder:   json.Marshal,
+		JSONDecoder:   json.Unmarshal,
 	}
 }
