@@ -4,7 +4,6 @@ type UserRes struct {
 	ID         string `json:"id"`
 	Email      string `json:"email"`
 	Name       string `json:"name"`
-	Role       string `json:"role"`
 	IsVerified bool   `json:"isVerified"`
 	CreatedAt  string `json:"createdAt"`
 	UpdatedAt  string `json:"updatedAt"`
@@ -26,15 +25,30 @@ type GoogleOAuthRes struct {
 	UserRes
 }
 
-type LoginReq struct {
-	Email    string `json:"email" validate:"required,email"`
-	Password string `json:"password" validate:"required,password"`
+type RefreshTokenReq struct {
+	RefreshToken string `json:"refreshToken" validate:"required"`
 }
 
-type RegisterReq struct {
-	Email    string `json:"email" validate:"required,email"`
-	Name     string `json:"name" validate:"required"`
-	Password string `json:"password" validate:"required,password"`
+type RefreshTokenRes struct {
+	TokenRes
+	UserRes
+}
+
+type GoogleLoginReq struct {
+	Name          string `json:"name" validate:"required,max=50"`
+	Email         string `json:"email" validate:"required,email,max=50"`
+	VerifiedEmail bool   `json:"verified_email" validate:"required"`
+	Picture       string `json:"picture" validate:"omitempty,url"`
+}
+
+type GoogleLoginRes struct {
+	TokenRes
+	UserRes
+}
+
+type LoginReq struct {
+	Email    string `json:"email" validate:"required,email,max=50"`
+	Password string `json:"password" validate:"required,min=8,max=50"`
 }
 
 type LoginRes struct {
@@ -42,32 +56,41 @@ type LoginRes struct {
 	UserRes
 }
 
+type RegisterReq struct {
+	Email    string `json:"email" validate:"required,email,max=50"`
+	Password string `json:"password" validate:"required,min=8,max=50"`
+	Name     string `json:"name" validate:"required,max=50"`
+}
+
 type RegisterRes struct {
+	TokenRes
+	UserRes
+}
+
+type ForgotPasswordReq struct {
+	Email string `json:"email" validate:"required,email,max=50"`
+}
+
+type ForgotPasswordRes struct {
+	TokenRes
+	UserRes
+}
+
+type ResetPasswordReq struct {
+	Token    string `json:"token" validate:"required"`
+	Password string `json:"password" validate:"required,min=8,max=50"`
+}
+
+type ResetPasswordRes struct {
+	TokenRes
 	UserRes
 }
 
 type SendVerificationEmailReq struct {
-	Email string `json:"email" validate:"required,email"`
+	Email string `json:"email" validate:"required,email,max=50"`
 }
 
-type ForgotPasswordReq struct {
-	Email string `json:"email" validate:"required,email"`
-}
-
-type ResetPasswordReq struct {
-	Password string `json:"password" validate:"required,password"`
-	Token    string `json:"token" validate:"required"`
-}
-
-type VerifyEmailReq struct {
-	Token string `json:"token" validate:"required"`
-}
-
-type RefreshTokenReq struct {
-	RefreshToken string `json:"refreshToken" validate:"required"`
-}
-
-type RefreshTokenRes struct {
+type SendVerificationEmailRes struct {
 	TokenRes
 	UserRes
 }

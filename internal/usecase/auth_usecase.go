@@ -15,78 +15,72 @@ import (
 )
 
 type AuthUsecase struct {
-	userRepo        *repository.UserRepository
-	emailUsecase    *EmailUsecase
-	firebaseUsecase *FirebaseUsecase
+	userRepo     *repository.UserRepository
+	emailUsecase *EmailUsecase
+	tokenUsecase *TokenUsecase
 }
 
-func NewAuthUsecase(userRepo *repository.UserRepository, emailUsecase *EmailUsecase, firebaseUsecase *FirebaseUsecase) *AuthUsecase {
+func NewAuthUsecase(userRepo *repository.UserRepository, emailUsecase *EmailUsecase, tokenUsecase *TokenUsecase) *AuthUsecase {
 	return &AuthUsecase{
-		userRepo:        userRepo,
-		emailUsecase:    emailUsecase,
-		firebaseUsecase: firebaseUsecase,
+		userRepo:     userRepo,
+		emailUsecase: emailUsecase,
+		tokenUsecase: tokenUsecase,
 	}
 }
 
-func (u *AuthUsecase) GoogleOAuth(c *fiber.Ctx, req *contract.GoogleOAuthReq) error {
-	googleInfo, err := u.firebaseUsecase.VerifyGoogleToken(c.Context(), req.IDToken)
-	if err != nil {
-		logger.Log.Warn("Failed to verify Google token", zap.Error(err))
-		return fiber.NewError(fiber.StatusBadRequest, "Invalid Google ID token")
-	}
+func (u *AuthUsecase) LoginGoogleUser(c *fiber.Ctx, req *contract.GoogleLoginReq) (*contract.GoogleLoginRes, error) {
+	userFromDB, err := u.userRepo.GetUserByEmail(req.Email)
 
-	var user *model.User
+	if userFromDB == nil || err != nil {
+		var googleImage *string
+		if req.Picture != "" {
+			googleImage = &req.Picture
+		}
+		user := &model.User{
+			Name:        req.Name,
+			Email:       req.Email,
+			IsVerified:  req.VerifiedEmail,
+			GoogleImage: googleImage,
+		}
 
-	user, err = u.userRepo.GetUserByGoogleID(googleInfo.Sub)
-	if err != nil {
-		logger.Log.Error("Failed to query user by Google ID", zap.Error(err), zap.String("googleID", googleInfo.Sub))
-		return fiber.NewError(fiber.StatusInternalServerError)
-	}
+		if err := u.userRepo.CreateUser(user); err != nil {
+			logger.Log.Errorf("Failed to create user: %+v", err)
+			return nil, err
+		}
 
-	if user == nil {
-		user, err = u.userRepo.GetUserByEmail(googleInfo.Email)
+		tokens, err := u.tokenUsecase.GenerateTokenPair(user.ID)
 		if err != nil {
-			logger.Log.Error("Failed to query user by email", zap.Error(err), zap.String("email", googleInfo.Email))
-			return fiber.NewError(fiber.StatusInternalServerError)
+			logger.Log.Error("Failed to generate token pair", zap.Error(err), zap.String("userID", user.ID))
+			return nil, err
 		}
+
+		return &contract.GoogleLoginRes{
+			TokenRes: tokens,
+			UserRes:  u.buildUserRes(user),
+		}, nil
 	}
 
-	if user == nil {
-		newUser := &model.User{
-			ID:         uuid.New().String(),
-			Name:       googleInfo.Name,
-			Email:      googleInfo.Email,
-			GoogleID:   googleInfo.Sub,
-			IsVerified: true,
-		}
-		if err := u.userRepo.CreateUser(newUser); err != nil {
-			logger.Log.Error("Failed to create user", zap.Error(err), zap.String("email", googleInfo.Email))
-			return fiber.NewError(fiber.StatusInternalServerError)
-		}
-		user = newUser
-	} else if user.GoogleID == "" || user.GoogleID != googleInfo.Sub {
-		user.GoogleID = googleInfo.Sub
-		user.IsVerified = true
-		user.Name = googleInfo.Name
-
-		if err := u.userRepo.UpdateUser(user); err != nil {
-			logger.Log.Error("Failed to update user", zap.Error(err), zap.String("userID", user.ID))
-			return fiber.NewError(fiber.StatusInternalServerError)
-		}
+	userFromDB.IsVerified = req.VerifiedEmail
+	var googleImage *string
+	if req.Picture != "" {
+		googleImage = &req.Picture
+	}
+	userFromDB.GoogleImage = googleImage
+	if err := u.userRepo.UpdateUser(userFromDB); err != nil {
+		logger.Log.Errorf("Failed to update user: %+v", err)
+		return nil, err
 	}
 
-	tokens, err := u.generateTokenPair(user.ID, user.Role)
+	tokens, err := u.tokenUsecase.GenerateTokenPair(userFromDB.ID)
 	if err != nil {
-		logger.Log.Error("Failed to generate token pair", zap.Error(err), zap.String("userID", user.ID))
-		return fiber.NewError(fiber.StatusInternalServerError)
+		logger.Log.Error("Failed to generate token pair", zap.Error(err), zap.String("userID", userFromDB.ID))
+		return nil, err
 	}
 
-	res := contract.GoogleOAuthRes{
-		TokenRes: *tokens,
-		UserRes:  u.buildUserRes(user),
-	}
-
-	return c.Status(fiber.StatusOK).JSON(util.ToSuccessResponse(res))
+	return &contract.GoogleLoginRes{
+		TokenRes: tokens,
+		UserRes:  u.buildUserRes(userFromDB),
+	}, nil
 }
 
 func (u *AuthUsecase) GetCurrentUser(c *fiber.Ctx) error {
@@ -384,7 +378,6 @@ func (u *AuthUsecase) buildUserRes(user *model.User) contract.UserRes {
 		ID:         user.ID,
 		Email:      user.Email,
 		Name:       user.Name,
-		Role:       user.Role,
 		IsVerified: user.IsVerified,
 		CreatedAt:  user.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:  user.UpdatedAt.Format(time.RFC3339),

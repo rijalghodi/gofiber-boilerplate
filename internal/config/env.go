@@ -8,17 +8,20 @@ import (
 )
 
 type Environment struct {
-	App        App
-	Logger     Logger
-	Postgres   Postgres
-	JWT        JWT
-	SMTPGoogle SMTPGoogle
-	Firebase   Firebase
+	App         App
+	Logger      Logger
+	Postgres    Postgres
+	JWT         JWT
+	SMTPGoogle  SMTPGoogle
+	Firebase    Firebase
+	OpenAI      OpenAI
+	GoogleOAuth GoogleOAuth
 }
 
 type App struct {
-	Host string `env:"APP_HOST"`
-	Port int    `env:"APP_PORT"`
+	Host    string `env:"APP_HOST"`
+	Port    int    `env:"APP_PORT"`
+	BaseURL string `env:"APP_BASE_URL"`
 }
 
 type Logger struct {
@@ -60,6 +63,17 @@ type SMTPGoogle struct {
 
 type Firebase struct {
 	ServiceAccountKeyPath string `env:"FIREBASE_SERVICE_ACCOUNT_KEY_PATH"`
+}
+
+type OpenAI struct {
+	APIKey string `env:"OPENAI_API_KEY"`
+}
+
+type GoogleOAuth struct {
+	RedirectURI       string `env:"GOOGLE_OAUTH_REDIRECT_URI"`
+	ClientID          string `env:"GOOGLE_OAUTH_CLIENT_ID"`
+	ClientSecret      string `env:"GOOGLE_OAUTH_CLIENT_SECRET"`
+	ClientCallbackURI string `env:"GOOGLE_OAUTH_CLIENT_CALLBACK_URI"`
 }
 
 var Env Environment
